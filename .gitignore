@@ -1,0 +1,5 @@
+dm_client
+.idea
+*.log
+*.dmp
+*.exe
