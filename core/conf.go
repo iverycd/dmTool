@@ -13,7 +13,7 @@ func InitConfig() {
 	viper.SetConfigFile("settings.yaml")
 	// 通过viper读取配置文件进行加载
 	if err := viper.ReadInConfig(); err == nil {
-		Log.Info("Using config file:", viper.ConfigFileUsed())
+		//Log.Info("Using config file:", viper.ConfigFileUsed())
 	} else {
 		Log.Fatal(viper.ConfigFileUsed(), " has some error please check your yml file ! ", "Detail-> ", err)
 	}

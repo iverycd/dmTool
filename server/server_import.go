@@ -6,13 +6,13 @@ import (
 	"bufio"
 	"dmTool/global"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/go-cmd/cmd"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"log"
 	"os"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // ExpImp 导出
@@ -23,25 +23,34 @@ func ExpImp() {
 	isReplace := ""
 	// 获取除了程序名称之外的所有参数,这里是获取备份文件的完整路径
 	inputFile := os.Args[1:]
+	// [用户交互部分]
 	if len(inputFile) > 0 {
-		fmt.Println("Your input file name is: ", inputFile[0])
-		fmt.Printf("Target host-> %s \nTarget user-> %s "+
-			"\nPlease confirm whether the information is correct and input \"YES\" for continue!\n", global.Config.Server.Host,
-			global.Config.Server.User,
-		)
+		// 检测文件是否存在
+		_, err := os.Stat(inputFile[0])
+		if os.IsNotExist(err) {
+			global.Log.Fatal(fmt.Sprintf("文件%s 不存在，程序退出", inputFile[0]))
+			return
+		}
+		fmt.Println("你输入的文件: ", inputFile[0])
+		//fmt.Printf("目标主机-> %s \n目标数据库连接账号-> %s "+
+		//	"\n请确认信息是否正确，输入\"YES\"继续,或者\"NO\"退出此程序\n", global.Config.Server.Host,
+		//	global.Config.Server.User,
+		//)
+		colorStr := color.New()
+		colorStr.Add(color.FgHiRed)
+		colorStr.Printf("目标主机-> %s \n目标数据库连接账号-> %s "+
+			"\n请确认信息是否正确，输入\"YES\"继续,或者\"NO\"退出此程序\n", global.Config.Server.Host,
+			global.Config.Server.User)
 		// 只有在终端输入YES之后才会导入
 		fmt.Scanln(&isConfirm)
-		if strings.ToUpper(isConfirm) == "YES" {
-			fmt.Println("You input ", isConfirm)
-		} else {
+		if strings.ToUpper(isConfirm) != "YES" {
 			return
 		}
 		// 输入是否覆盖导入
 		for {
-			fmt.Println("是否覆盖导入请输入yes或者no")
+			colorStr.Printf("是否覆盖导入请输入yes或者no\n")
 			fmt.Scanln(&isConfirm)
 			if strings.ToUpper(isConfirm) == "YES" {
-				fmt.Println("You input ", isConfirm)
 				isReplace = "TABLE_EXISTS_ACTION=replace"
 				break
 			} else if strings.ToUpper(isConfirm) == "NO" {
@@ -52,8 +61,10 @@ func ExpImp() {
 		}
 
 	} else {
-		global.Log.Fatal("[Error messages: please input backup file absolute path; Program Exit!]")
+		global.Log.Fatal("[请输入备份文件的绝对路径; 程序退出!]")
 	}
+	// [导入前的分析部分]
+
 	// 读取备份文件重定向到平面文件
 	// Run foo and block waiting for it to exit
 	dmCmd := fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s show=y >analyze.log",
@@ -108,6 +119,9 @@ func ExpImp() {
 	if err := scanner.Err(); err != nil {
 		global.Log.Fatal(err)
 	}
+
+	// [导入部分]
+
 	// 拼接导入命令,isReplace默认为空字符串，否则为TABLE_EXISTS_ACTION=replace
 	dmCmd = fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s log=%s.log LOG_WRITE=y dummy=y %s remap_schema=%s:%s",
 		global.Config.Server.User,
@@ -121,55 +135,52 @@ func ExpImp() {
 		strings.ToUpper(global.Config.Server.User),
 	)
 	fmt.Println(dmCmd)
-	// Start a long-running process, capture stdout and stderr
-	// 执行导入
-	findCmd := cmd.NewCmd("cmd", "/C", dmCmd)
-	statusChan := findCmd.Start() // non-blocking
-	ticker := time.NewTicker(1 * time.Millisecond)
 
-	// Print last line of stdout every 2s
+	// 执行导入
+
+	// Disable output buffering, enable streaming
+	cmdOptions := cmd.Options{
+		Buffered:  false,
+		Streaming: true,
+	}
+
+	// Create Cmd with options,创建带选项的cmd
+	envCmd := cmd.NewCmdOptions(cmdOptions, "cmd", "/C", dmCmd)
+
+	// Print STDOUT and STDERR lines streaming from Cmd 实时输出
+	doneChan := make(chan struct{})
 	go func() {
-		for range ticker.C {
-			status := findCmd.Status()
-			n := len(status.Stdout)
-			if n > 0 {
+		defer close(doneChan)
+		// Done when both channels have been closed
+		for envCmd.Stdout != nil || envCmd.Stderr != nil {
+			select {
+			case line, open := <-envCmd.Stdout:
+				if !open {
+					envCmd.Stdout = nil
+					continue
+				}
 				//将GBK编码的字符串转换为utf-8编码
-				output, err := simplifiedchinese.GBK.NewDecoder().String(status.Stdout[n-1])
+				output, err := simplifiedchinese.GBK.NewDecoder().String(line)
 				if err != nil {
 					fmt.Println(err)
 				}
 				fmt.Println(output)
+			case line, open := <-envCmd.Stderr:
+				if !open {
+					envCmd.Stderr = nil
+					continue
+				}
+				fmt.Fprintln(os.Stderr, line)
 			}
 		}
 	}()
 
-	// Stop command after 1 hour
-	go func() {
-		<-time.After(1 * time.Hour)
-		findCmd.Stop()
-	}()
+	// Run and wait for Cmd to return, discard Status
+	<-envCmd.Start()
 
-	// Check if command is done
-	select {
-	case finalStatus := <-statusChan:
-		// done
-		fmt.Println(finalStatus)
-	default:
-		// no, still running
-	}
+	// Wait for goroutine to print everything
+	<-doneChan
 
-	// Block waiting for command to exit, be stopped, or be killed
-	finalStatus := <-statusChan
-	n := len(finalStatus.Stdout)
-	if n > 0 {
-		//将GBK编码的字符串转换为utf-8编码
-		output, err := simplifiedchinese.GBK.NewDecoder().String(finalStatus.Stdout[n-1])
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println(output)
-	}
-	// 读取导入日志最后10行
 	global.Log.Info("导入已结束，请查看导入日志", inputFile[0]+".log")
 
 }

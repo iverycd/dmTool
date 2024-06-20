@@ -5,7 +5,7 @@ import (
 	"github.com/fatih/color"
 )
 
-var ver = "0.0.2"
+var ver = "0.0.1"
 
 func Info() {
 	color.Red("DDDDDDDDDDDDD      BBBBBBBBBBBBBBBBB               AAA                  GGGGGGGGGGGGG     OOOOOOOOO     DDDDDDDDDDDDD        ")
@@ -26,7 +26,7 @@ func Info() {
 	color.Red("DDDDDDDDDDDDD      BBBBBBBBBBBBBBBBBAAAAAAA                   AAAAAAA   GGGGGG   GGGG     OOOOOOOOO     DDDDDDDDDDDDD        ")
 	colorStr := color.New()
 	colorStr.Add(color.FgHiGreen)
-	colorStr.Printf("VastBase export and import Tool\n")
+	colorStr.Printf("DM export and import Tool\n")
 	colorStr.Printf("Powered By: DBA Team Of Infrastructure Research Center \nRelease version v" + ver)
 	fmt.Printf("\n")
 }
