@@ -11,7 +11,7 @@ import (
 )
 
 // ExpImp 导出
-func ExpImp() {
+func ExpImp2() {
 	fileName := fmt.Sprintf("%s_%s", global.Config.Server.User, time.Now().Format("2006_01_02_15_04_05"))
 	// 获取服务端连接方式
 	dmCmd := fmt.Sprintf("dm_client\\dexp %s/%s@%s:%s file=%s.dmp log=%s.log schemas=%s",

@@ -1,25 +1,33 @@
-//go:build imp
+////go:build exp
 
 package server
 
 import (
+	"bufio"
+	"dmTool/global"
 	"fmt"
+	"github.com/go-cmd/cmd"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"log"
 	"os"
-	"path/filepath"
+	"regexp"
 	"strings"
-	"vastTool/global"
+	"time"
 )
 
-// ExpImp 导入
-func (connect *Connect) ExpImp() {
+// ExpImp 导出
+func ExpImp() {
 	var isConfirm string
+	var bakSchemaName string
+	// 是否覆盖，默认为空字符串
+	isReplace := ""
 	// 获取除了程序名称之外的所有参数,这里是获取备份文件的完整路径
 	inputFile := os.Args[1:]
 	if len(inputFile) > 0 {
 		fmt.Println("Your input file name is: ", inputFile[0])
-		fmt.Printf("Target host-> %s Database name-> %s "+
+		fmt.Printf("Target host-> %s \nTarget user-> %s "+
 			"\nPlease confirm whether the information is correct and input \"YES\" for continue!\n", global.Config.Server.Host,
-			global.Config.Database.DbName,
+			global.Config.Server.User,
 		)
 		// 只有在终端输入YES之后才会导入
 		fmt.Scanln(&isConfirm)
@@ -28,81 +36,140 @@ func (connect *Connect) ExpImp() {
 		} else {
 			return
 		}
+		// 输入是否覆盖导入
+		for {
+			fmt.Println("是否覆盖导入请输入yes或者no")
+			fmt.Scanln(&isConfirm)
+			if strings.ToUpper(isConfirm) == "YES" {
+				fmt.Println("You input ", isConfirm)
+				isReplace = "TABLE_EXISTS_ACTION=replace"
+				break
+			} else if strings.ToUpper(isConfirm) == "NO" {
+				break
+			} else {
+				fmt.Println("无效输入，请只输入 'yes' 或 'no'")
+			}
+		}
+
 	} else {
 		global.Log.Fatal("[Error messages: please input backup file absolute path; Program Exit!]")
 	}
-	// 建立ssh会话
-	sftpClient, session := connect.InitSsh()
-	// 上传备份
-	// 打开本地的dump.sql文件
-	localFile, err := os.Open(inputFile[0])
+	// 读取备份文件重定向到平面文件
+	// Run foo and block waiting for it to exit
+	dmCmd := fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s show=y >analyze.log",
+		global.Config.Server.User,
+		global.Config.Server.Password,
+		global.Config.Server.Host,
+		global.Config.Server.Port,
+		inputFile[0],
+	)
+	fmt.Println(dmCmd)
+	c := cmd.NewCmd("cmd", "/C", dmCmd)
+	s := <-c.Start()
+	// 完成状态，true就是完成了
+	if !s.Complete {
+		os.Exit(0)
+	}
+	// 对analyze文件进行解析获取源的模式名
+	file, err := os.Open("analyze.log")
 	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// 创建一个扫描器
+	scanner := bufio.NewScanner(file)
+	// 扫描每行
+	for scanner.Scan() {
+		line := scanner.Text()
+		//将GBK编码的字符串转换为utf-8编码
+		line, err := simplifiedchinese.GBK.NewDecoder().String(line)
+		if err != nil {
+			global.Log.Fatal(err)
+		}
+		// 正则表达式匹配 '模式TEST  含有 334 个表',获取到模式名
+		re := regexp.MustCompile(`^模式(\S+)\s+含有`)
+		if re == nil {
+			global.Log.Fatal(err)
+		}
+		matches := re.FindStringSubmatch(line)
+		// 切片长度大于1，说明这一行匹配到了
+		if len(matches) > 1 {
+			bakSchemaName = matches[1]
+			fmt.Printf("schema = %s\n", bakSchemaName)
+			break // 只查找第一行匹配即可，这里假设文件中只有一个匹配
+		}
+	}
+	// 如果上面正则没有匹配到，抛出警告退出程序
+	if bakSchemaName == "" {
+		global.Log.Fatal("[Error messages: fetch schema failed!]")
+	}
+	// 处理错误
+	if err := scanner.Err(); err != nil {
 		global.Log.Fatal(err)
 	}
-	defer localFile.Close()
-	// 创建服务器上的目标文件
-	remotePath := "/tmp/" // 服务端上用来放数据库备份的目录
-	_, fileName := filepath.Split(inputFile[0])
-	remoteFile, err := sftpClient.Create(remotePath + fileName)
-	if err != nil {
-		global.Log.Fatal(err)
-	}
-	defer remoteFile.Close()
-	// 本地文件的大小信息
-	localFileInfo, _ := localFile.Stat()
-	localFileSize := localFileInfo.Size()
-	// 实时显示上传进度
+	// 拼接导入命令,isReplace默认为空字符串，否则为TABLE_EXISTS_ACTION=replace
+	dmCmd = fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s log=%s.log LOG_WRITE=y dummy=y %s remap_schema=%s:%s",
+		global.Config.Server.User,
+		global.Config.Server.Password,
+		global.Config.Server.Host,
+		global.Config.Server.Port,
+		inputFile[0],
+		inputFile[0],
+		isReplace,
+		strings.ToUpper(bakSchemaName),
+		strings.ToUpper(global.Config.Server.User),
+	)
+	fmt.Println(dmCmd)
+	// Start a long-running process, capture stdout and stderr
+	// 执行导入
+	findCmd := cmd.NewCmd("cmd", "/C", dmCmd)
+	statusChan := findCmd.Start() // non-blocking
+	ticker := time.NewTicker(1 * time.Millisecond)
+
+	// Print last line of stdout every 2s
 	go func() {
-		for {
-			remoteFileInfo, _ := remoteFile.Stat()
-			remoteFileSize := remoteFileInfo.Size()
-			progress := float64(remoteFileSize) / float64(localFileSize) * 100
-			fmt.Printf("\rFile %s  is Uploading ... Current Progress->  %.2f%%", fileName, progress)
-			if remoteFileSize == localFileSize {
-				break
+		for range ticker.C {
+			status := findCmd.Status()
+			n := len(status.Stdout)
+			if n > 0 {
+				//将GBK编码的字符串转换为utf-8编码
+				output, err := simplifiedchinese.GBK.NewDecoder().String(status.Stdout[n-1])
+				if err != nil {
+					fmt.Println(err)
+				}
+				fmt.Println(output)
 			}
 		}
 	}()
-	// 将本地文件内容复制到服务器上的目标文件
-	//bytes, err := ioutil.ReadAll(localFile) // 读的os打开的文件句柄
-	//bytes, err := os.ReadFile(inputFile[0]) // 读的文件绝对路径
-	//if err != nil {
-	//	global.Log.Fatal(err)
-	//}
-	//_, err = remoteFile.Write(bytes)
-	//if err != nil {
-	//	global.Log.Fatal(err)
-	//}
-	// ReadFrom是全速上传
-	_, err = remoteFile.ReadFrom(localFile)
-	if err != nil {
-		global.Log.Fatal(err)
+
+	// Stop command after 1 hour
+	go func() {
+		<-time.After(1 * time.Hour)
+		findCmd.Stop()
+	}()
+
+	// Check if command is done
+	select {
+	case finalStatus := <-statusChan:
+		// done
+		fmt.Println(finalStatus)
+	default:
+		// no, still running
 	}
-	// 检查文件是否成功上传
-	info, err := sftpClient.Stat(remotePath + fileName)
-	if err != nil {
-		global.Log.Fatal(err)
+
+	// Block waiting for command to exit, be stopped, or be killed
+	finalStatus := <-statusChan
+	n := len(finalStatus.Stdout)
+	if n > 0 {
+		//将GBK编码的字符串转换为utf-8编码
+		output, err := simplifiedchinese.GBK.NewDecoder().String(finalStatus.Stdout[n-1])
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(output)
 	}
-	if info.Size() == 0 {
-		global.Log.Fatal(" \nFile upload failed")
-	} else {
-		fmt.Println(" \nFile uploaded successfully")
-	}
-	// 执行导入命令
-	global.Log.Println("begin import to database <- " + remotePath + fileName)
-	cmd := fmt.Sprintf("su - vastbase -c \"vsql -U%s -W%s -p%s %s < %s\"",
-		global.Config.Database.User,
-		global.Config.Database.Password,
-		global.Config.Database.Port,
-		global.Config.Database.DbName,
-		remotePath+fileName,
-	)
-	global.Log.Println(cmd)
-	// 运行导入
-	err = session.Run(cmd)
-	defer session.Close()
-	if err != nil {
-		global.Log.Fatalf("Failed to execute command '%s': %s", cmd, err)
-	}
-	global.Log.Info("Import finish to vastbase")
+	// 读取导入日志最后10行
+	global.Log.Info("导入已结束，请查看导入日志", inputFile[0]+".log")
+
 }
