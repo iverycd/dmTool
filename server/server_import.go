@@ -1,4 +1,4 @@
-////go:build exp
+//go:build imp
 
 package server
 
@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-// ExpImp 导出
+// ExpImp 导入
 func ExpImp() {
 	var isConfirm string
 	var bakSchemaName string
@@ -48,7 +48,7 @@ func ExpImp() {
 		}
 		// 输入是否覆盖导入
 		for {
-			colorStr.Printf("是否覆盖导入请输入yes或者no\n")
+			colorStr.Printf("是否覆盖导入请输入YES或者NO\n")
 			fmt.Scanln(&isConfirm)
 			if strings.ToUpper(isConfirm) == "YES" {
 				isReplace = "TABLE_EXISTS_ACTION=replace"
@@ -123,6 +123,7 @@ func ExpImp() {
 	// [导入部分]
 
 	// 拼接导入命令,isReplace默认为空字符串，否则为TABLE_EXISTS_ACTION=replace
+	//findCmd := cmd.NewCmd("cmd", "/C", "dm_client\\dimp test/Gepoint@192.168.74.10 file=dexp.dmp table_exists_action=replace schemas=test") 导入示例
 	dmCmd = fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s log=%s.log LOG_WRITE=y dummy=y %s remap_schema=%s:%s",
 		global.Config.Server.User,
 		global.Config.Server.Password,

@@ -1,0 +1,10 @@
+server:
+  host: 192.168.74.10  # 数据库服务器ip
+  user: test  # 数据库登录用户
+  password: Gepoint
+  port: 5236
+backup_file:
+  user: test  # 数据库jdbc连接字符串用户
+  password: 11111 # 数据库密码
+  port: 5432
+  DbName: test # 数据库名称

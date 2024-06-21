@@ -1,4 +1,4 @@
-////go:build exp
+//go:build exp
 
 package server
 
@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"github.com/go-cmd/cmd"
 	"golang.org/x/text/encoding/simplifiedchinese"
+	"os"
 	"time"
 )
 
 // ExpImp 导出
-func ExpImp2() {
+func ExpImp() {
+	// 导出的文件名
 	fileName := fmt.Sprintf("%s_%s", global.Config.Server.User, time.Now().Format("2006_01_02_15_04_05"))
-	// 获取服务端连接方式
+	// 拼接导出命令
 	dmCmd := fmt.Sprintf("dm_client\\dexp %s/%s@%s:%s file=%s.dmp log=%s.log schemas=%s",
 		global.Config.Server.User,
 		global.Config.Server.Password,
@@ -24,57 +26,51 @@ func ExpImp2() {
 		global.Config.Server.User,
 	)
 	fmt.Println(dmCmd)
-	// Start a long-running process, capture stdout and stderr
-	// 导出
-	findCmd := cmd.NewCmd("cmd", "/C", dmCmd)
-	// 导入
-	//findCmd := cmd.NewCmd("cmd", "/C", "dm_client\\dimp test/Gepoint@192.168.74.10 file=dexp.dmp table_exists_action=replace schemas=test")
-	//findCmd := cmd.NewCmd("cmd", "/C", "dir")
-	statusChan := findCmd.Start() // non-blocking
 
-	ticker := time.NewTicker(10 * time.Millisecond)
+	// Disable output buffering, enable streaming
+	cmdOptions := cmd.Options{
+		Buffered:  false,
+		Streaming: true,
+	}
 
-	// Print last line of stdout every 2s
+	// Create Cmd with options
+	envCmd := cmd.NewCmdOptions(cmdOptions, "cmd", "/C", dmCmd)
+
+	// 执行导出
+
+	// Print STDOUT and STDERR lines streaming from Cmd
+	doneChan := make(chan struct{})
 	go func() {
-		for range ticker.C {
-			status := findCmd.Status()
-			n := len(status.Stdout)
-			if n > 0 {
+		defer close(doneChan)
+		// Done when both channels have been closed
+		for envCmd.Stdout != nil || envCmd.Stderr != nil {
+			select {
+			case line, open := <-envCmd.Stdout:
+				if !open {
+					envCmd.Stdout = nil
+					continue
+				}
 				//将GBK编码的字符串转换为utf-8编码
-				output, err := simplifiedchinese.GBK.NewDecoder().String(status.Stdout[n-1])
+				output, err := simplifiedchinese.GBK.NewDecoder().String(line)
 				if err != nil {
 					fmt.Println(err)
 				}
 				fmt.Println(output)
+			case line, open := <-envCmd.Stderr:
+				if !open {
+					envCmd.Stderr = nil
+					continue
+				}
+				fmt.Fprintln(os.Stderr, line)
 			}
 		}
 	}()
 
-	// Stop command after 1 hour
-	go func() {
-		<-time.After(1 * time.Hour)
-		findCmd.Stop()
-	}()
+	// Run and wait for Cmd to return, discard Status
+	<-envCmd.Start()
 
-	// Check if command is done
-	select {
-	case finalStatus := <-statusChan:
-		// done
-		fmt.Println(finalStatus)
-	default:
-		// no, still running
-	}
+	// Wait for goroutine to print everything
+	<-doneChan
 
-	// Block waiting for command to exit, be stopped, or be killed
-	finalStatus := <-statusChan
-	n := len(finalStatus.Stdout)
-	if n > 0 {
-		//将GBK编码的字符串转换为utf-8编码
-		output, err := simplifiedchinese.GBK.NewDecoder().String(finalStatus.Stdout[n-1])
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println(output)
-	}
-	fmt.Println("\nExport  Success in your current path ->", fileName+".dmp")
+	fmt.Println("\n导出结束，请查看当前路径下的文件 ->", fileName+".dmp")
 }
