@@ -3,3 +3,5 @@ dm_client
 *.log
 *.dmp
 *.exe
+*.zip
+binary

@@ -1,5 +1,5 @@
 mode con: cols=150 lines=60
 @echo off
 
-export_vastTool.exe
+exp_dmTool.exe
 pause

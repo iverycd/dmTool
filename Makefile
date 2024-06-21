@@ -57,7 +57,7 @@ release:
 		copy example.yaml  binary\win\dm-tool
 		copy start_export.bat binary\win\dm-tool
 		copy start_import.bat binary\win\dm-tool
-		7z a %BINARY%-win-x64-%VERSION%.zip binary\win\dm-tool
+		"C:\Program Files\7-Zip\7z" a %BINARY%-win-x64-%VERSION%.zip binary\win\dm-tool
 		go clean
 # Cleans our projects: deletes binaries
 clean:

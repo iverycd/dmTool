@@ -16,7 +16,7 @@ func ExpImp() {
 	// 导出的文件名
 	fileName := fmt.Sprintf("%s_%s", global.Config.Server.User, time.Now().Format("2006_01_02_15_04_05"))
 	// 拼接导出命令
-	dmCmd := fmt.Sprintf("dm_client\\dexp %s/%s@%s:%s file=%s.dmp log=%s.log schemas=%s",
+	dmCmd := fmt.Sprintf("dm_client\\dexp %s/\"%s\"@%s:%s file=%s.dmp log=%s.log schemas=%s",
 		global.Config.Server.User,
 		global.Config.Server.Password,
 		global.Config.Server.Host,

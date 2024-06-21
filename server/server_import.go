@@ -67,7 +67,7 @@ func ExpImp() {
 
 	// 读取备份文件重定向到平面文件
 	// Run foo and block waiting for it to exit
-	dmCmd := fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s show=y >analyze.log",
+	dmCmd := fmt.Sprintf("dm_client\\dimp %s/\"%s\"@%s:%s file=%s show=y >analyze.log",
 		global.Config.Server.User,
 		global.Config.Server.Password,
 		global.Config.Server.Host,
@@ -124,7 +124,7 @@ func ExpImp() {
 
 	// 拼接导入命令,isReplace默认为空字符串，否则为TABLE_EXISTS_ACTION=replace
 	//findCmd := cmd.NewCmd("cmd", "/C", "dm_client\\dimp test/Gepoint@192.168.74.10 file=dexp.dmp table_exists_action=replace schemas=test") 导入示例
-	dmCmd = fmt.Sprintf("dm_client\\dimp %s/%s@%s:%s file=%s log=%s.log LOG_WRITE=y dummy=y %s remap_schema=%s:%s",
+	dmCmd = fmt.Sprintf("dm_client\\dimp %s/\"%s\"@%s:%s file=%s log=%s.log LOG_WRITE=y dummy=y %s remap_schema=%s:%s",
 		global.Config.Server.User,
 		global.Config.Server.Password,
 		global.Config.Server.Host,
