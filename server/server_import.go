@@ -32,6 +32,19 @@ func ExpImp() {
 			return
 		}
 		fmt.Println("你输入的文件: ", inputFile[0])
+
+		// 读取dmp文件头部3999字节，然后获取到版本号
+		header, err := ReadFileHeader(inputFile[0], 3999) // 假设你想读取前5个字节
+		if err != nil {
+			log.Fatal(err)
+		}
+		version := FetchDmpVersion(header)
+		if version != "" {
+			fmt.Println("备份文件头版本号:", version)
+		} else {
+			fmt.Println("备份文件头版本号获取失败")
+		}
+
 		//fmt.Printf("目标主机-> %s \n目标数据库连接账号-> %s "+
 		//	"\n请确认信息是否正确，输入\"YES\"继续,或者\"NO\"退出此程序\n", global.Config.Server.Host,
 		//	global.Config.Server.User,
