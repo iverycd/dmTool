@@ -5,14 +5,27 @@ package server
 import (
 	"dmTool/global"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/go-cmd/cmd"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"os"
+	"strings"
 	"time"
 )
 
 // ExpImp 导出
 func ExpImp() {
+	var isConfirm string
+	colorStr := color.New()
+	colorStr.Add(color.FgHiRed)
+	colorStr.Printf("目标主机-> %s \n目标数据库连接账号-> %s "+
+		"\n请确认信息是否正确，输入\"YES\"继续,或者\"NO\"退出此程序\n", global.Config.Server.Host,
+		global.Config.Server.User)
+	// 只有在终端输入YES之后才会导出
+	fmt.Scanln(&isConfirm)
+	if strings.ToUpper(isConfirm) != "YES" {
+		return
+	}
 	// 导出的文件名
 	fileName := fmt.Sprintf("%s_%s", global.Config.Server.User, time.Now().Format("2006_01_02_15_04_05"))
 	// 拼接导出命令

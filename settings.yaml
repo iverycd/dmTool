@@ -2,7 +2,4 @@ server:
   host: 192.168.74.10  # 数据库服务器ip
   user: test  # 数据库登录用户
   password: Gepoint
-#  host: 192.168.212.203  # 数据库服务器ip
-#  user: dm_admin  # 数据库登录用户
-#  password: Epoint@angel123
   port: 5236
