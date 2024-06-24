@@ -84,6 +84,11 @@ func ExpImp() {
 
 	// Wait for goroutine to print everything
 	<-doneChan
-
+	// 检测备份文件是否存在
+	_, err := os.Stat(fileName + ".dmp")
+	if os.IsNotExist(err) {
+		global.Log.Fatal("导出异常,程序退出")
+		return
+	}
 	fmt.Println("\n导出结束，请查看当前路径下的文件 ->", fileName+".dmp")
 }
