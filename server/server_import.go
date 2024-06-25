@@ -152,16 +152,16 @@ func ExpImp() {
 
 	// 执行导入
 
-	// Disable output buffering, enable streaming
+	// Disable output buffering, enable streaming,设置cmd的输出方式
 	cmdOptions := cmd.Options{
 		Buffered:  false,
 		Streaming: true,
 	}
 
-	// Create Cmd with options,创建带选项的cmd
+	// Create Cmd with options,创建带选项的cmd，并不是真正执行cmd
 	envCmd := cmd.NewCmdOptions(cmdOptions, "cmd", "/C", dmCmd)
 
-	// Print STDOUT and STDERR lines streaming from Cmd 实时输出
+	// Print STDOUT and STDERR lines streaming from Cmd 实时输出cmd运行的命令行程序输出的内容
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -189,10 +189,10 @@ func ExpImp() {
 		}
 	}()
 
-	// Run and wait for Cmd to return, discard Status
+	// Run and wait for Cmd to return, discard Status 正在执行命令行程序
 	<-envCmd.Start()
 
-	// Wait for goroutine to print everything
+	// Wait for goroutine to print everything 等待上面的命令行程序在cmd运行完成
 	<-doneChan
 
 	global.Log.Info("导入已结束，请查看导入日志", inputFile[0]+".log")

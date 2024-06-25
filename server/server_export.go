@@ -40,18 +40,18 @@ func ExpImp() {
 	)
 	fmt.Println(dmCmd)
 
-	// Disable output buffering, enable streaming
+	// Disable output buffering, enable streaming 设置cmd输出的方式
 	cmdOptions := cmd.Options{
 		Buffered:  false,
 		Streaming: true,
 	}
 
-	// Create Cmd with options
+	// Create Cmd with options 设置cmd选项
 	envCmd := cmd.NewCmdOptions(cmdOptions, "cmd", "/C", dmCmd)
 
 	// 执行导出
 
-	// Print STDOUT and STDERR lines streaming from Cmd
+	// Print STDOUT and STDERR lines streaming from Cmd 实时输出命令行程序标准输出
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -79,10 +79,10 @@ func ExpImp() {
 		}
 	}()
 
-	// Run and wait for Cmd to return, discard Status
+	// Run and wait for Cmd to return, discard Status 真正执行cmd程序
 	<-envCmd.Start()
 
-	// Wait for goroutine to print everything
+	// Wait for goroutine to print everything cmd等待上面的程序执行完成
 	<-doneChan
 	// 检测备份文件是否存在
 	_, err := os.Stat(fileName + ".dmp")
